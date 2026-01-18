@@ -105,7 +105,9 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     try {
-      final count = await SmsService.importFromSms(count: 200);
+      final importCount = SmsService.getImportCount();
+      final count = await SmsService.importFromSms(count: importCount);
+      await SmsService.incrementSyncCount();
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(

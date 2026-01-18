@@ -1,10 +1,36 @@
 import 'dart:io' show Platform;
+import 'package:hive/hive.dart';
 import 'package:telephony/telephony.dart';
 import '../models/transaction.dart';
 import 'storage_service.dart';
 
 class SmsService {
   static final Telephony telephony = Telephony.instance;
+
+  // Settings box for app preferences
+  static Box? _settingsBox;
+  static const String _syncCountKey = 'sms_sync_count';
+
+  // Initialize the settings box
+  static Future<void> initSettings() async {
+    _settingsBox = await Hive.openBox('app_settings');
+  }
+
+  // Get current sync count
+  static int getSyncCount() {
+    return _settingsBox?.get(_syncCountKey, defaultValue: 0) ?? 0;
+  }
+
+  // Increment sync count after each sync
+  static Future<void> incrementSyncCount() async {
+    final current = getSyncCount();
+    await _settingsBox?.put(_syncCountKey, current + 1);
+  }
+
+  // Determine the appropriate import count (1000 if < 10 syncs, 200 otherwise)
+  static int getImportCount() {
+    return getSyncCount() < 10 ? 1000 : 200;
+  }
   
   // Verifica si la plataforma soporta SMS
   static bool get isSmsSupported => !Platform.isLinux && !Platform.isWindows && !Platform.isMacOS;

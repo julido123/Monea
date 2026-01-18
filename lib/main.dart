@@ -40,9 +40,12 @@ void main() async {
   
   // Inicializa CategoryService
   await CategoryService.init();
-  
+
   // Inicializa BudgetService
   await BudgetService.init();
+
+  // Inicializa SmsService settings
+  await SmsService.initSettings();
   
   // Verifica permisos y configura listener de SMS si están otorgados
   final hasPermissions = await SmsService.hasPermissions();

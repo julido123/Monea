@@ -127,49 +127,73 @@ class Transaction extends HiveObject {
 
   // Extrae el monto del SMS
   static double _extractAmount(String sms) {
-    // Formato colombiano: $36.753,00 o $1.200.000,00 (punto para miles, coma para decimales)
-    // Formato internacional: $1,234.56 (coma para miles, punto para decimales)
+    // En Colombia, Bancolombia usa el formato: $413,300.00
+    // donde la COMA es separador de miles y el PUNTO es separador de decimales
+    // Esto es diferente del formato europeo donde el punto es para miles
     
-    // Patrón 1: Formato colombiano con punto para miles y coma para decimales
-    // Ejemplo: $36.753,00 o $1.200.000,00
-    var match = RegExp(r'\$\s*(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)').firstMatch(sms);
+    // Patrón principal: Formato con $ seguido de números con comas y/o puntos
+    // Ejemplos: $413,300.00, $20,000.00, $400,000, $60,000
+    var match = RegExp(r'\$\s*(\d{1,3}(?:[.,]\d{3})*(?:\.\d{2})?)').firstMatch(sms);
     if (match != null) {
-      String amountStr = match.group(1)!
-          .replaceAll('.', '') // Elimina puntos (separadores de miles)
-          .replaceAll(',', '.'); // Convierte coma decimal a punto
-      final amount = double.tryParse(amountStr);
-      if (amount != null) return amount;
+      String amountStr = match.group(1)!;
+      
+      // Determinar el formato basándose en la estructura del número
+      // Si tiene coma Y punto, el formato es: coma=miles, punto=decimal (formato colombiano estándar)
+      // Ejemplo: 413,300.00 -> 413300.00
+      if (amountStr.contains(',') && amountStr.contains('.')) {
+        // Verificar que el punto esté después de la coma (formato colombiano)
+        final commaIndex = amountStr.lastIndexOf(',');
+        final dotIndex = amountStr.lastIndexOf('.');
+        
+        if (dotIndex > commaIndex) {
+          // Formato: 413,300.00 (coma para miles, punto para decimales)
+          amountStr = amountStr.replaceAll(',', ''); // Elimina comas (separadores de miles)
+          final amount = double.tryParse(amountStr);
+          if (amount != null) return amount;
+        }
+      }
+      
+      // Si solo tiene comas (sin punto decimal)
+      // Ejemplo: 400,000 -> 400000
+      else if (amountStr.contains(',') && !amountStr.contains('.')) {
+        amountStr = amountStr.replaceAll(',', ''); // Elimina comas (separadores de miles)
+        final amount = double.tryParse(amountStr);
+        if (amount != null) return amount;
+      }
+      
+      // Si solo tiene puntos
+      // Necesitamos determinar si es separador de miles o decimal
+      else if (amountStr.contains('.') && !amountStr.contains(',')) {
+        final parts = amountStr.split('.');
+        
+        // Si la última parte tiene exactamente 2 dígitos, es decimal
+        // Ejemplo: 1.200.000.00 -> última parte "00" = decimal
+        if (parts.length > 1 && parts.last.length == 2) {
+          // Eliminar todos los puntos excepto el último
+          final wholePart = parts.sublist(0, parts.length - 1).join('');
+          final decimalPart = parts.last;
+          amountStr = '$wholePart.$decimalPart';
+          final amount = double.tryParse(amountStr);
+          if (amount != null) return amount;
+        }
+        // Si no, probablemente sean separadores de miles
+        // Ejemplo: 1.200.000 -> 1200000
+        else {
+          amountStr = amountStr.replaceAll('.', '');
+          final amount = double.tryParse(amountStr);
+          if (amount != null) return amount;
+        }
+      }
+      
+      // Número simple sin separadores
+      else {
+        final amount = double.tryParse(amountStr);
+        if (amount != null) return amount;
+      }
     }
 
-    // Patrón 2: Formato internacional con coma para miles y punto para decimales
-    // Ejemplo: $1,234.56
-    match = RegExp(r'\$\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)').firstMatch(sms);
-    if (match != null) {
-      String amountStr = match.group(1)!.replaceAll(',', '');
-      final amount = double.tryParse(amountStr);
-      if (amount != null) return amount;
-    }
-
-    // Patrón 3: Solo número con formato colombiano (punto miles, coma decimal)
-    match = RegExp(r'(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)').firstMatch(sms);
-    if (match != null) {
-      String amountStr = match.group(1)!
-          .replaceAll('.', '')
-          .replaceAll(',', '.');
-      final amount = double.tryParse(amountStr);
-      if (amount != null) return amount;
-    }
-
-    // Patrón 4: Solo número con formato internacional
-    match = RegExp(r'(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)').firstMatch(sms);
-    if (match != null) {
-      String amountStr = match.group(1)!.replaceAll(',', '');
-      final amount = double.tryParse(amountStr);
-      if (amount != null) return amount;
-    }
-
-    // Patrón 5: Número simple sin separadores
-    match = RegExp(r'\$\s*(\d+(?:\.\d{2})?)').firstMatch(sms);
+    // Patrón de respaldo: buscar cualquier secuencia de dígitos después de $
+    match = RegExp(r'\$\s*(\d+)').firstMatch(sms);
     if (match != null) {
       final amount = double.tryParse(match.group(1)!);
       if (amount != null) return amount;
